@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "DeepSeek Daily Token Monitor",
+  "description": "Import DeepSeek usage CSV files, view daily token totals, and check API balance.",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "DeepSeek Token Monitor",
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.deepseek.com/*"
+  ]
+}

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DeepSeek Token Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">DeepSeek Monitor</p>
+          <h1>每日 Token 用量</h1>
+        </div>
+        <a class="ghost-link" href="https://platform.deepseek.com/usage" target="_blank" rel="noreferrer">Usage</a>
+      </header>
+
+      <section class="panel balance-panel" aria-labelledby="balance-title">
+        <div class="section-head">
+          <div>
+            <h2 id="balance-title">余额</h2>
+            <p>API Key 只保存在本机扩展存储中。</p>
+          </div>
+          <button class="icon-button" id="clearKeyBtn" type="button" title="清除 API Key" aria-label="清除 API Key">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6h18"></path>
+              <path d="M8 6V4h8v2"></path>
+              <path d="M19 6l-1 14H6L5 6"></path>
+              <path d="M10 11v5"></path>
+              <path d="M14 11v5"></path>
+            </svg>
+          </button>
+        </div>
+        <label class="field">
+          <span>DeepSeek API Key</span>
+          <input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-...">
+        </label>
+        <div class="actions-row">
+          <label class="checkbox-line">
+            <input id="rememberKeyInput" type="checkbox">
+            <span>记住密钥</span>
+          </label>
+          <button class="primary-button" id="balanceBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
+              <path d="M21 4v6h-6"></path>
+            </svg>
+            查询余额
+          </button>
+        </div>
+        <div class="status-line" id="balanceStatus" aria-live="polite"></div>
+        <div class="balance-list" id="balanceList"></div>
+      </section>
+
+      <section class="panel import-panel" aria-labelledby="import-title">
+        <div class="section-head">
+          <div>
+            <h2 id="import-title">导入用量 CSV</h2>
+            <p>从 DeepSeek Usage 页面导出月份数据，解压后导入 CSV。</p>
+          </div>
+        </div>
+        <label class="drop-zone" id="dropZone">
+          <input id="fileInput" type="file" accept=".csv,text/csv" multiple>
+          <span class="drop-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v12"></path>
+              <path d="M7 8l5-5 5 5"></path>
+              <path d="M5 15v4h14v-4"></path>
+            </svg>
+          </span>
+          <span class="drop-title">选择或拖入 CSV 文件</span>
+          <span class="drop-copy">支持 amount、tokens 或包含 usage 字段的明细文件。</span>
+        </label>
+        <div class="actions-row">
+          <button class="secondary-button" id="clearUsageBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6h18"></path>
+              <path d="M8 6V4h8v2"></path>
+              <path d="M19 6l-1 14H6L5 6"></path>
+            </svg>
+            清空数据
+          </button>
+          <span class="meta-text" id="importMeta"></span>
+        </div>
+        <div class="status-line" id="importStatus" aria-live="polite"></div>
+      </section>
+
+      <section class="metrics-grid" aria-label="用量概览">
+        <article class="metric-card">
+          <span>今天</span>
+          <strong id="todayTokens">0</strong>
+          <small>tokens</small>
+        </article>
+        <article class="metric-card">
+          <span>本月</span>
+          <strong id="monthTokens">0</strong>
+          <small>tokens</small>
+        </article>
+        <article class="metric-card">
+          <span>最近一天</span>
+          <strong id="latestTokens">0</strong>
+          <small id="latestDate">暂无数据</small>
+        </article>
+      </section>
+
+      <section class="panel chart-panel" aria-labelledby="chart-title">
+        <div class="section-head compact">
+          <div>
+            <h2 id="chart-title">近 14 天趋势</h2>
+            <p id="dataRange">导入 CSV 后显示。</p>
+          </div>
+        </div>
+        <div class="chart-empty" id="chartEmpty">还没有用量数据</div>
+        <div class="bar-chart" id="barChart" aria-label="每日 token 柱状图"></div>
+      </section>
+
+      <section class="panel table-panel" aria-labelledby="table-title">
+        <div class="section-head compact">
+          <div>
+            <h2 id="table-title">每日明细</h2>
+            <p>按日期倒序展示最近 12 天。</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>总量</th>
+                <th>输入</th>
+                <th>输出</th>
+                <th>费用</th>
+              </tr>
+            </thead>
+            <tbody id="usageTableBody">
+              <tr>
+                <td colspan="5" class="empty-cell">暂无数据</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="usage.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

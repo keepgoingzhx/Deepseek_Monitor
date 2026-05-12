@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DeepSeek 用量插件</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="compact-widget">
+      <div class="compact-drag-zone" title="按住拖动位置">
+        <img class="compact-logo" src="deepseek-whale.svg" alt="">
+        <div class="compact-token-row">
+          <strong id="compactTokens">0</strong>
+          <span>今日</span>
+        </div>
+      </div>
+      <button id="compactWidgetBtn" class="compact-widget-button" type="button" title="展开 DeepSeek 用量" aria-label="展开">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+      </button>
+    </div>
+
+    <main class="widget">
+      <header class="titlebar">
+        <div class="brand">
+          <span class="status-dot on" id="apiDot"></span>
+          <div>
+            <p>DeepSeek Monitor</p>
+            <h1>用量看板</h1>
+          </div>
+        </div>
+
+        <div class="window-actions">
+          <button id="compactBtn" type="button" title="切换为桌面按钮" aria-label="切换为桌面按钮">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h8v8H8z"></path><path d="M4 4h16v16H4z"></path></svg>
+          </button>
+          <button id="settingsBtn" type="button" title="设置" aria-label="设置">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"></path></svg>
+          </button>
+          <button id="minimizeBtn" type="button" title="最小化" aria-label="最小化">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>
+          </button>
+          <button id="closeBtn" type="button" title="隐藏到后台" aria-label="隐藏到后台">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="hero" aria-label="今日用量">
+        <div class="hero-main">
+          <span class="eyebrow">今日 token 消耗</span>
+          <strong id="todayTokens">0</strong>
+          <span class="hero-sub" id="todayTokensFull">0 tokens</span>
+        </div>
+        <button class="refresh-button" id="refreshBtn" type="button" title="刷新" aria-label="刷新">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 4v6h-6"></path></svg>
+        </button>
+        <div class="hero-breakdown">
+          <span><small>输入</small><b id="todayPromptTokens">0</b></span>
+          <span><small>输出</small><b id="todayOutputTokens">0</b></span>
+          <span><small>缓存命中</small><b id="todayCacheTokens">0</b></span>
+        </div>
+      </section>
+
+      <section class="summary-grid" aria-label="本月概览">
+        <article>
+          <span>本月 Token</span>
+          <strong id="monthTokens">0</strong>
+        </article>
+        <article>
+          <span>今日请求</span>
+          <strong id="todayRequests">0</strong>
+        </article>
+        <article>
+          <span>本月费用</span>
+          <strong id="balanceValue">¥0.00</strong>
+        </article>
+      </section>
+
+      <section class="action-strip" aria-label="同步状态">
+        <div>
+          <span id="apiStatus">正在读取登录态用量</span>
+          <code id="apiUrl">后台每 5 分钟自动爬取，界面实时刷新</code>
+          <p class="operation-status" id="operationStatus" aria-live="polite"></p>
+        </div>
+        <div class="action-buttons">
+          <button id="openUsagePageMainBtn" class="primary-mini" type="button">登录</button>
+          <button id="syncUsagePageBtn" type="button">同步</button>
+          <button id="autoExportBtn" type="button">导出</button>
+          <button id="copyApiBtn" type="button">导入</button>
+        </div>
+      </section>
+
+      <section class="chart-panel" aria-label="最近十四天用量">
+        <div class="panel-head">
+          <div>
+            <span>最近 14 天</span>
+            <small id="lastUsage">暂无请求</small>
+          </div>
+          <small id="dataRange">--</small>
+        </div>
+        <div class="chart-empty" id="chartEmpty">暂无用量数据</div>
+        <div class="bar-chart" id="barChart"></div>
+      </section>
+
+      <section class="table-panel" aria-label="每日消耗">
+        <div class="panel-head">
+          <div>
+            <span>每日消耗</span>
+            <small>按日期倒序展示，每天 token 用量写在第一行</small>
+          </div>
+        </div>
+        <div class="usage-list" id="usageList"></div>
+      </section>
+
+      <aside class="settings-panel" id="settingsPanel" aria-hidden="true">
+        <div class="settings-head">
+          <h2>设置</h2>
+          <button id="settingsCloseBtn" type="button" title="关闭设置" aria-label="关闭设置">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+
+        <label class="field">
+          <span>DeepSeek API Key，可选</span>
+          <input id="apiKeyInput" type="password" autocomplete="off" placeholder="当前用量爬取不需要填写">
+        </label>
+
+        <div class="toggle-row">
+          <label><input id="rememberKeyInput" type="checkbox"> 保存密钥</label>
+          <label><input id="alwaysOnTopInput" type="checkbox"> 窗口置顶</label>
+        </div>
+
+        <div class="toggle-row">
+          <label><input id="openAtLoginInput" type="checkbox"> 开机自启</label>
+          <label><input id="compactModeInput" type="checkbox"> 启动为桌面按钮</label>
+        </div>
+
+        <div class="toggle-row">
+          <label class="mini-field"><span>界面刷新秒数</span><input id="refreshIntervalInput" type="number" min="15" max="60"></label>
+          <label class="mini-field"><span>本地端口</span><input id="portInput" type="number" min="1024" max="65535"></label>
+        </div>
+
+        <label class="field">
+          <span>DeepSeek API 地址</span>
+          <input id="baseUrlInput" type="url" autocomplete="off">
+        </label>
+
+        <div class="settings-actions">
+          <button id="saveSettingsBtn" class="primary" type="button">保存</button>
+          <button id="importCsvBtn" type="button">导入文件</button>
+          <button id="resetUsageBtn" type="button">清空</button>
+        </div>
+        <p class="settings-note">后台每 30 分钟自动爬取用量；界面最短 60 秒刷新一次，数据变化会立即更新。</p>
+        <p class="settings-status" id="settingsStatus" aria-live="polite"></p>
+      </aside>
+    </main>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

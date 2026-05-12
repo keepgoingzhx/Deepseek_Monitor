@@ -1,0 +1,19 @@
+{
+  "name": "deepseek-desktop-monitor",
+  "version": "0.2.0",
+  "description": "A desktop widget that monitors DeepSeek token usage in real time through a local proxy.",
+  "license": "MIT",
+  "main": "src/main.js",
+  "private": true,
+  "scripts": {
+    "api": "node usage-api.js",
+    "start": "electron .",
+    "check": "node --check usage-api.js && node --check src/usage-api-core.js && node --check src/usage-importer.js && node --check src/main.js && node --check src/preload.js && node --check src/proxy-server.js && node --check src/state-store.js && node --check desktop/renderer.js && node --check usage.js && node tests/usage.test.js"
+  },
+  "devDependencies": {
+    "electron": "^42.0.1"
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1"
+  }
+}
