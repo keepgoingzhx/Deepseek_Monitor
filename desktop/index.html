@@ -80,7 +80,7 @@
       <section class="action-strip" aria-label="同步状态">
         <div>
           <span id="apiStatus">正在读取登录态用量</span>
-          <code id="apiUrl">后台每 5 分钟自动爬取，界面实时刷新</code>
+          <code id="apiUrl">登录后自动同步，后台定时更新</code>
           <p class="operation-status" id="operationStatus" aria-live="polite"></p>
         </div>
         <div class="action-buttons">
@@ -151,7 +151,7 @@
           <button id="importCsvBtn" type="button">导入文件</button>
           <button id="resetUsageBtn" type="button">清空</button>
         </div>
-        <p class="settings-note">后台每 30 分钟自动爬取用量；界面最短 60 秒刷新一次，数据变化会立即更新。</p>
+        <p class="settings-note">打开登录页后每 15 秒检测登录态；同步成功后后台每 30 分钟更新一次。</p>
         <p class="settings-status" id="settingsStatus" aria-live="polite"></p>
       </aside>
     </main>

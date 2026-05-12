@@ -137,7 +137,7 @@ function renderRuntime(data) {
   if (data.summary && data.summary.days) {
     elements.apiUrl.textContent = `后台每 30 分钟自动爬取；界面每 ${settings.refreshIntervalSec || 60} 秒刷新；最新日期 ${data.summary.lastDate || "--"}`;
   } else {
-    elements.apiUrl.textContent = "先登录 DeepSeek 平台，再点同步；之后后台每 30 分钟自动更新";
+    elements.apiUrl.textContent = "点击登录并完成 DeepSeek 登录后会自动同步；同步成功后后台每 30 分钟更新";
   }
 }
 
@@ -207,7 +207,7 @@ function renderUsageList(daily) {
   const rows = daily.filter(hasUsage).slice(-10).reverse();
 
   if (!rows.length) {
-    elements.usageList.innerHTML = '<div class="empty-row">暂无每日用量。登录后点击同步，插件会读取 DeepSeek 页面里的用量。</div>';
+    elements.usageList.innerHTML = '<div class="empty-row">暂无每日用量。点击登录并完成 DeepSeek 登录后，插件会自动同步用量。</div>';
     return;
   }
 

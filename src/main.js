@@ -37,6 +37,7 @@ let downloadHooked = false;
 const usageNetworkRequests = new Map();
 let autoScrapeTimer = null;
 let backgroundCrawlTimer = null;
+let usageWindowSyncTimer = null;
 let crawlInFlight = false;
 let isQuitting = false;
 let lastTraySignature = "";
@@ -47,6 +48,7 @@ const capturedUsageResponses = [];
 const API_CRAWL_MONTHS = 12;
 const BACKGROUND_API_CRAWL_MONTHS = 2;
 const USAGE_AUTO_CRAWL_INTERVAL_MS = 30 * 60 * 1000;
+const LOGIN_WATCH_INTERVAL_MS = 15 * 1000;
 const FULL_BACKGROUND_CRAWL_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const APP_VERSION_CACHE_MS = 24 * 60 * 60 * 1000;
 const MIN_REFRESH_INTERVAL_SEC = 15;
@@ -84,6 +86,7 @@ app.on("window-all-closed", async () => {
   clearInterval(refreshTimer);
   clearInterval(backgroundCrawlTimer);
   clearInterval(autoScrapeTimer);
+  clearUsageWindowSyncTimer();
   if (apiServer) await apiServer.stop().catch(() => {});
   app.quit();
 });
@@ -160,6 +163,7 @@ async function quitApplication() {
   clearInterval(refreshTimer);
   clearInterval(backgroundCrawlTimer);
   clearInterval(autoScrapeTimer);
+  clearUsageWindowSyncTimer();
   if (apiServer) await apiServer.stop().catch(() => {});
   app.quit();
 }
@@ -406,16 +410,19 @@ function openUsageWindow() {
   attachUsageNetworkCapture(usageWindow.webContents);
   usageWindow.webContents.on("did-finish-load", () => {
     injectUsageWindowHelper().catch(() => {});
-    setTimeout(() => syncUsagePage().then(broadcastSnapshot).catch(() => {}), 2500);
+    scheduleUsageWindowSync(2500);
   });
+  usageWindow.webContents.on("did-navigate", () => scheduleUsageWindowSync(2500));
+  usageWindow.webContents.on("did-navigate-in-page", () => scheduleUsageWindowSync(2500));
   usageWindow.on("closed", () => {
     stopAutoScrapeUsagePage();
+    clearUsageWindowSyncTimer();
     detachUsageNetworkCapture();
     usageWindow = null;
   });
 
   startAutoScrapeUsagePage();
-  lastImportStatus = "已打开 DeepSeek Usage 页面。登录后插件会自动用当前登录态爬取用量接口，也可手动点“登录态爬取”。";
+  lastImportStatus = "已打开 DeepSeek Usage 页面。登录后插件会自动识别登录态并同步用量，也可手动点“同步”。";
   usageWindow.loadURL("https://platform.deepseek.com/usage");
   broadcastSnapshot();
 }
@@ -423,12 +430,30 @@ function openUsageWindow() {
 function startAutoScrapeUsagePage() {
   stopAutoScrapeUsagePage();
   runScheduledUsageCrawl().catch(() => {});
+  autoScrapeTimer = setInterval(() => {
+    runScheduledUsageCrawl().catch(() => {});
+  }, LOGIN_WATCH_INTERVAL_MS);
 }
 
 function stopAutoScrapeUsagePage() {
   if (autoScrapeTimer) {
     clearInterval(autoScrapeTimer);
     autoScrapeTimer = null;
+  }
+}
+
+function scheduleUsageWindowSync(delayMs) {
+  clearUsageWindowSyncTimer();
+  usageWindowSyncTimer = setTimeout(() => {
+    usageWindowSyncTimer = null;
+    syncUsagePage().then(broadcastSnapshot).catch(() => {});
+  }, delayMs);
+}
+
+function clearUsageWindowSyncTimer() {
+  if (usageWindowSyncTimer) {
+    clearTimeout(usageWindowSyncTimer);
+    usageWindowSyncTimer = null;
   }
 }
 
@@ -567,7 +592,7 @@ async function injectUsageWindowHelper() {
       if (document.getElementById('deepseek-monitor-helper')) return;
       const box = document.createElement('div');
       box.id = 'deepseek-monitor-helper';
-      box.textContent = 'DeepSeek 用量插件：登录后会自动抓取当前页面用量；也可以回到插件点击“抓取页面”。';
+      box.textContent = 'DeepSeek Monitor：登录后会自动识别登录态并同步用量；也可以回到插件点击“同步”。';
       Object.assign(box.style, {
         position: 'fixed',
         right: '16px',
@@ -592,7 +617,7 @@ async function syncUsagePage() {
     if (storedLoginResult.ok) {
       return storedLoginResult;
     }
-    lastImportStatus = `${storedLoginResult.message || "未找到本地登录态。"} 请点击“打开登录页”确认 DeepSeek 已登录后，再点“登录态爬取”。`;
+    lastImportStatus = `${storedLoginResult.message || "未找到本地登录态。"} 请点击“登录”打开 DeepSeek 页面，登录后会自动同步，也可以手动点“同步”。`;
     return { ok: false, message: lastImportStatus };
   }
 
