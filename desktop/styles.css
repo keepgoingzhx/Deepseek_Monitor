@@ -63,7 +63,7 @@ svg {
 .widget {
   position: relative;
   display: grid;
-  grid-template-rows: auto auto auto auto 166px minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto 210px minmax(0, 1fr);
   gap: 10px;
   width: 100vw;
   height: 100vh;
@@ -506,7 +506,7 @@ body.compact-mode .compact-widget {
 .bar-chart {
   display: grid;
   align-items: stretch;
-  gap: 4px;
+  gap: 6px;
   width: 100%;
   min-height: 0;
   height: 100%;
@@ -515,7 +515,7 @@ body.compact-mode .compact-widget {
 
 .bar-item {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 29px;
+  grid-template-rows: minmax(0, 1fr) 20px;
   align-items: stretch;
   min-width: 0;
   height: 100%;
@@ -544,34 +544,22 @@ body.compact-mode .compact-widget {
 .bar-label {
   display: grid;
   place-items: center;
-  gap: 1px;
   min-width: 0;
-  height: 29px;
-  margin-top: 5px;
-  color: var(--faint);
+  height: 20px;
+  margin-top: 4px;
+  color: var(--ink);
   text-align: center;
   line-height: 1;
 }
 
-.bar-label small,
 .bar-label b {
   display: block;
   width: 100%;
   overflow: hidden;
-  text-overflow: clip;
-  white-space: nowrap;
-}
-
-.bar-label small {
-  color: var(--muted);
-  font-size: 8px;
-  font-weight: 700;
-}
-
-.bar-label b {
-  color: var(--ink);
   font-size: 10px;
   font-weight: 850;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 .chart-empty {
@@ -840,7 +828,7 @@ body.compact-mode .compact-widget {
 
 @media (max-height: 700px) {
   .widget {
-    grid-template-rows: auto auto auto auto 152px minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto 196px minmax(0, 1fr);
     gap: 8px;
     padding: 10px;
   }
@@ -859,12 +847,12 @@ body.compact-mode .compact-widget {
   }
 
   .bar-item {
-    grid-template-rows: minmax(0, 1fr) 27px;
+    grid-template-rows: minmax(0, 1fr) 20px;
   }
 
   .bar-label {
-    height: 27px;
-    margin-top: 5px;
+    height: 20px;
+    margin-top: 4px;
   }
 
   .bar-label b {

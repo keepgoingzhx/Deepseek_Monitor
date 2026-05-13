@@ -186,18 +186,18 @@ function renderChart(daily) {
   elements.chartPanel.classList.remove("empty");
   const max = Math.max(...recent.map((item) => Number(item.totalTokens) || 0), 1);
   elements.barChart.style.gridTemplateColumns = `repeat(${recent.length}, minmax(0, 1fr))`;
-  elements.barChart.innerHTML = recent.map((item) => {
+  elements.barChart.innerHTML = recent.map((item, index) => {
     const tokens = Number(item.totalTokens) || 0;
     const height = Math.max(tokens ? 8 : 0, Math.round((tokens / max) * 100));
     const title = `${item.date}: ${formatNumber(tokens)} tokens`;
     const dateParts = formatChartDate(item.date);
+    const prevMonth = index > 0 ? formatChartDate(recent[index - 1].date).month : "";
+    const showMonth = dateParts.month !== prevMonth;
+    const label = showMonth ? `${dateParts.month}月` : dateParts.day;
     return `
       <div class="bar-item" title="${escapeHtml(title)}">
         <div class="bar-track"><span style="height:${height}%"></span></div>
-        <span class="bar-label">
-          <small>${escapeHtml(dateParts.month)}</small>
-          <b>${escapeHtml(dateParts.day)}</b>
-        </span>
+        <span class="bar-label"><b>${escapeHtml(label)}</b></span>
       </div>
     `;
   }).join("");
@@ -269,13 +269,18 @@ function closeSettings() {
 }
 
 async function refreshBalance() {
-  setStatus("正在刷新...");
+  setStatus("正在同步用量...");
   try {
-    snapshot = await bridge.refreshBalance();
+    const syncResult = await bridge.syncUsagePage();
+    snapshot = syncResult.snapshot;
     render(snapshot);
-    setStatus("已刷新。", "success");
+    try {
+      snapshot = await bridge.refreshBalance();
+      render(snapshot);
+    } catch {}
+    setStatus(syncResult.ok ? "已同步并刷新。" : (syncResult.message || "同步完成。"), syncResult.ok ? "success" : "error");
   } catch (error) {
-    setStatus(error.message || "刷新失败。", "error");
+    setStatus(error.message || "同步失败。", "error");
   }
 }
 
