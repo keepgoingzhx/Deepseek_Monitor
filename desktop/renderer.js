@@ -233,16 +233,16 @@ function renderUsageList(daily) {
           <span class="row-cost">${cost ? escapeHtml(formatCurrency(cost)) : "费用 --"}</span>
         </div>
         <div class="daily-token-total">
-          <span>当天 token 消耗</span>
+          <span>daily tokens</span>
           <strong>${escapeHtml(formatNumber(total))} <em>tokens</em></strong>
         </div>
         <div class="usage-meter" aria-hidden="true"><span style="width:${percent}%"></span></div>
         <div class="usage-breakdown-row">
-          <span><small>输入</small><b>${escapeHtml(formatNumber(prompt))}</b></span>
-          <span><small>输出</small><b>${escapeHtml(formatNumber(output))}</b></span>
-          <span><small>缓存命中</small><b>${escapeHtml(formatNumber(cacheHit))}</b></span>
-          <span><small>缓存未命中</small><b>${escapeHtml(formatNumber(cacheMiss))}</b></span>
-          <span><small>请求</small><b>${escapeHtml(formatNumber(requests))}</b></span>
+          <span><small>input</small><b>${escapeHtml(formatNumber(prompt))}</b></span>
+          <span><small>output</small><b>${escapeHtml(formatNumber(output))}</b></span>
+          <span><small>cache hit</small><b>${escapeHtml(formatNumber(cacheHit))}</b></span>
+          <span><small>cache miss</small><b>${escapeHtml(formatNumber(cacheMiss))}</b></span>
+          <span><small>requests</small><b>${escapeHtml(formatNumber(requests))}</b></span>
         </div>
       </article>
     `;
