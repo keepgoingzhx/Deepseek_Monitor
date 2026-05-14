@@ -127,15 +127,110 @@ function createWindow() {
 
 function createTray() {
   if (tray) return;
-  tray = new Tray(createTrayIcon());
+
+  const fallbackIcon = loadPngTrayIcon();
+  tray = new Tray(fallbackIcon);
   tray.setToolTip("DeepSeek Token 用量");
-  tray.on("click", () => showMainWindow(false));
-  tray.on("double-click", () => showMainWindow(false));
+  tray.on("click", () => {
+    showMainWindow(false);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.center();
+    }
+  });
+  tray.on("double-click", () => {
+    showMainWindow(false);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.center();
+    }
+  });
   updateTray(true);
+
+  // Async: render whale SVG → PNG and update tray icon
+  generateWhaleTrayIcon().then((icon) => {
+    if (icon && tray && !tray.isDestroyed()) {
+      tray.setImage(icon);
+    }
+  }).catch(() => {});
 }
 
-function createTrayIcon() {
-  return nativeImage.createFromPath(path.join(__dirname, "..", "desktop", "tray-icon.png"));
+function loadPngTrayIcon() {
+  const pngPath = path.join(__dirname, "..", "desktop", "tray-icon.png");
+  if (fs.existsSync(pngPath)) {
+    const img = nativeImage.createFromPath(pngPath);
+    if (!img.isEmpty() && img.getSize().width > 1) return img;
+  }
+  // 1x1 transparent fallback
+  return nativeImage.createEmpty();
+}
+
+function generateWhaleTrayIcon() {
+  const svgPath = path.join(__dirname, "..", "desktop", "deepseek-whale.svg");
+  const pngPath = path.join(__dirname, "..", "desktop", "tray-icon.png");
+
+  try {
+    const svg = fs.readFileSync(svgPath, "utf8");
+
+    // Render SVG at high resolution for crisp tray icon
+    const svgBase64 = Buffer.from(svg).toString("base64");
+    const svgDataUrl = `data:image/svg+xml;base64,${svgBase64}`;
+    const html = `<!DOCTYPE html>
+<html><head><style>
+*{margin:0;padding:0}body{display:flex;align-items:center;justify-content:center;
+width:100vw;height:100vh;background:transparent}
+img{width:160px;height:160px;image-rendering:auto}
+</style></head><body>
+<img id="w" src="${svgDataUrl}" alt="">
+<script>
+document.getElementById("w").onload = function(){
+  document.title = "loaded";
+};
+<\/script>
+</body></html>`;
+
+    const iconWin = new BrowserWindow({
+      show: false,
+      width: 200,
+      height: 200,
+      transparent: true,
+      webPreferences: { backgroundThrottling: false }
+    });
+
+    iconWin.loadURL(`data:text/html;base64,${Buffer.from(html).toString("base64")}`);
+
+    return new Promise((resolve) => {
+      const checkLoaded = () => {
+        const title = iconWin.webContents.getTitle();
+        if (title === "loaded") {
+          captureIcon(iconWin, resolve);
+        } else {
+          setTimeout(() => checkLoaded(), 50);
+        }
+      };
+      iconWin.webContents.once("did-finish-load", () => setTimeout(checkLoaded, 100));
+      // Safety timeout
+      setTimeout(() => captureIcon(iconWin, resolve), 3000);
+    });
+  } catch {
+    return Promise.resolve(null);
+  }
+}
+
+async function captureIcon(iconWin, resolve) {
+  try {
+    const pngPath = path.join(__dirname, "..", "desktop", "tray-icon.png");
+    // Wait for paint
+    await new Promise((r) => setTimeout(r, 150));
+    const image = await iconWin.webContents.capturePage();
+    const resized = image.resize({ width: 32, height: 32, quality: "better" });
+    const png = resized.toPNG();
+    try { fs.writeFileSync(pngPath, png); } catch {}
+    const img = nativeImage.createFromBuffer(png);
+    resolve(!img.isEmpty() ? img : null);
+  } catch {
+    resolve(null);
+  } finally {
+    try { if (!iconWin.isDestroyed()) iconWin.destroy(); } catch {}
+  }
 }
 
 function showMainWindow(compactMode = false) {
@@ -287,6 +382,9 @@ function bindIpc() {
     saveSettings();
     applyWindowMode(settings.compactMode);
     showMainWindow(settings.compactMode);
+    if (!compactMode && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.center();
+    }
     updateTray(true);
     broadcastSnapshot();
     return getSnapshot();

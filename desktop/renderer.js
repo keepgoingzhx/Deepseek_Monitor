@@ -60,7 +60,8 @@ function snapshotKey(data) {
     l: data.lastBalanceCheckedAt,
     r: (data.runtime || {}).running,
     p: (data.runtime || {}).port,
-    e: (data.runtime || {}).error
+    e: (data.runtime || {}).error,
+    c: (data.settings || {}).compactMode
   });
 }
 
