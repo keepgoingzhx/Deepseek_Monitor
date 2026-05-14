@@ -43,10 +43,14 @@ const elements = {
   saveSettingsBtn: document.querySelector("#saveSettingsBtn"),
   importCsvBtn: document.querySelector("#importCsvBtn"),
   resetUsageBtn: document.querySelector("#resetUsageBtn"),
-  settingsStatus: document.querySelector("#settingsStatus")
+  settingsStatus: document.querySelector("#settingsStatus"),
+  petWhale: document.querySelector("#petWhale"),
+  petBadge: document.querySelector("#petBadge"),
+  petTokens: document.querySelector("#petTokens")
 };
 
 let snapshot = null;
+let prevTokenValue = null;
 
 function snapshotKey(data) {
   const daily = data.dailyUsage || [];
@@ -77,6 +81,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 function bindEvents() {
   elements.compactWidgetBtn.addEventListener("click", () => setCompactMode(false));
   elements.compactBtn.addEventListener("click", () => setCompactMode(true));
+
+  if (elements.petWhale) {
+    elements.petWhale.addEventListener("click", (e) => e.stopPropagation());
+  }
   elements.settingsBtn.addEventListener("click", openSettings);
   elements.settingsCloseBtn.addEventListener("click", closeSettings);
   elements.minimizeBtn.addEventListener("click", () => bridge.minimize());
@@ -152,7 +160,17 @@ function renderMetrics(data) {
 
   const todayTokens = todayItem ? Number(todayItem.totalTokens) || 0 : 0;
   elements.todayTokens.textContent = formatCompact(todayTokens);
-  elements.compactTokens.textContent = formatCompact(todayTokens);
+
+  if (elements.petTokens) {
+    elements.petTokens.textContent = formatCompact(todayTokens);
+    if (prevTokenValue !== null && prevTokenValue !== todayTokens) {
+      elements.petBadge.classList.remove("pop");
+      void elements.petBadge.offsetWidth;
+      elements.petBadge.classList.add("pop");
+      setTimeout(() => elements.petBadge.classList.remove("pop"), 400);
+    }
+    prevTokenValue = todayTokens;
+  }
   elements.todayTokensFull.textContent = `${formatNumber(todayTokens)} tokens`;
   elements.todayPromptTokens.textContent = formatCompact(todayItem ? todayItem.promptTokens : 0);
   elements.todayOutputTokens.textContent = formatCompact(todayItem ? todayItem.completionTokens : 0);

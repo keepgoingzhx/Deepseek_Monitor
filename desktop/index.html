@@ -8,14 +8,15 @@
   </head>
   <body>
     <div class="compact-widget">
-      <div class="compact-drag-zone" title="按住拖动位置">
-        <img class="compact-logo" src="deepseek-whale.svg" alt="">
-        <div class="compact-token-row">
-          <strong id="compactTokens">0</strong>
-          <span>今日</span>
+      <div class="pet-zone" id="petZone" title="按住拖动位置">
+        <div class="pet-whale" id="petWhale">
+          <img class="whale-svg" src="deepseek-whale.svg" alt="DeepSeek Whale">
+        </div>
+        <div class="pet-badge" id="petBadge">
+          <strong id="petTokens">0</strong>
         </div>
       </div>
-      <button id="compactWidgetBtn" class="compact-widget-button" type="button" title="展开 DeepSeek 用量" aria-label="展开">
+      <button id="compactWidgetBtn" class="compact-widget-button" type="button" title="展开看板" aria-label="展开">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
       </button>
     </div>
@@ -26,7 +27,7 @@
           <span class="status-dot on" id="apiDot"></span>
           <div>
             <p>DeepSeek Monitor</p>
-            <h1>用量看板</h1>
+
           </div>
         </div>
 
