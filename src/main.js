@@ -78,7 +78,13 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => {
-  isQuitting = true;
+  // On Windows, before-quit fires even when the user just clicks X to close
+  // a window — we must NOT set isQuitting there, or the close handler will
+  // skip preventDefault and the window will actually close (quitting the app).
+  // On macOS, before-quit only fires on Cmd+Q / Dock Quit — safe to set.
+  if (process.platform === "darwin") {
+    isQuitting = true;
+  }
 });
 
 app.on("window-all-closed", async () => {
