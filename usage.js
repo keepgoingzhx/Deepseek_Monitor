@@ -199,9 +199,11 @@
   }
 
   function formatLocalDate(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+    // Use UTC — DeepSeek's API returns billing data keyed by UTC dates,
+    // and the stored daily usage uses UTC dates throughout.
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   }
 
@@ -373,14 +375,59 @@
 
     (incoming || []).forEach((item) => {
       if (item && item.date) {
-        byDate.set(item.date, cloneUsageDay(item));
+        const existingDay = byDate.get(item.date);
+        if (existingDay && item.models) {
+          // Preserve existing model data and merge with incoming models
+          const merged = cloneUsageDay(item);
+          merged.models = {
+            flash: cloneModelBucket(existingDay.models && existingDay.models.flash
+              ? (existingDay.models.flash.totalTokens ? existingDay.models.flash : item.models.flash)
+              : item.models.flash),
+            pro: cloneModelBucket(existingDay.models && existingDay.models.pro
+              ? (existingDay.models.pro.totalTokens ? existingDay.models.pro : item.models.pro)
+              : item.models.pro)
+          };
+          byDate.set(item.date, merged);
+        } else {
+          byDate.set(item.date, cloneUsageDay(item));
+        }
       }
     });
 
     return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  function cloneModelBucket(m) {
+    if (!m || typeof m !== "object") {
+      return emptyModelBucket();
+    }
+    return {
+      totalTokens: Number(m.totalTokens) || 0,
+      promptTokens: Number(m.promptTokens) || 0,
+      completionTokens: Number(m.completionTokens) || 0,
+      cacheHitTokens: Number(m.cacheHitTokens) || 0,
+      cacheMissTokens: Number(m.cacheMissTokens) || 0,
+      reasoningTokens: Number(m.reasoningTokens) || 0,
+      cost: Number(m.cost) || 0,
+      requests: Number(m.requests) || 0
+    };
+  }
+
+  function emptyModelBucket() {
+    return {
+      totalTokens: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      cacheHitTokens: 0,
+      cacheMissTokens: 0,
+      reasoningTokens: 0,
+      cost: 0,
+      requests: 0
+    };
+  }
+
   function cloneUsageDay(item) {
+    const models = item ? item.models : null;
     return {
       date: item.date,
       totalTokens: Number(item.totalTokens) || 0,
@@ -390,7 +437,13 @@
       cacheMissTokens: Number(item.cacheMissTokens) || 0,
       reasoningTokens: Number(item.reasoningTokens) || 0,
       cost: Number(item.cost) || 0,
-      requests: Number(item.requests) || 0
+      requests: Number(item.requests) || 0,
+      models: models && typeof models === "object"
+        ? {
+            flash: cloneModelBucket(models.flash),
+            pro: cloneModelBucket(models.pro)
+          }
+        : { flash: emptyModelBucket(), pro: emptyModelBucket() }
     };
   }
 
@@ -400,15 +453,46 @@
     const list = (daily || []).map(cloneUsageDay).sort((a, b) => a.date.localeCompare(b.date));
     const latest = list[list.length - 1] || null;
 
+    const todayItems = list.filter((item) => item.date === today);
+    const monthItems = list.filter((item) => item.date.slice(0, 7) === month);
+
+    function modelSum(field, modelKey) {
+      return todayItems.reduce((sum, item) => {
+        const bucket = item.models && item.models[modelKey];
+        return bucket ? sum + (Number(bucket[field]) || 0) : sum;
+      }, 0);
+    }
+
+    function modelMonthSum(field, modelKey) {
+      return monthItems.reduce((sum, item) => {
+        const bucket = item.models && item.models[modelKey];
+        return bucket ? sum + (Number(bucket[field]) || 0) : sum;
+      }, 0);
+    }
+
     return {
       today,
-      todayTokens: sumWhere(list, (item) => item.date === today, "totalTokens"),
-      monthTokens: sumWhere(list, (item) => item.date.slice(0, 7) === month, "totalTokens"),
-      monthCost: sumWhere(list, (item) => item.date.slice(0, 7) === month, "cost"),
+      todayTokens: sumWhere(todayItems, () => true, "totalTokens"),
+      monthTokens: sumWhere(monthItems, () => true, "totalTokens"),
+      monthCost: sumWhere(monthItems, () => true, "cost"),
       latest,
       firstDate: list[0] ? list[0].date : "",
       lastDate: latest ? latest.date : "",
-      days: list.length
+      days: list.length,
+      flash: {
+        todayTokens: modelSum("totalTokens", "flash"),
+        todayRequests: modelSum("requests", "flash"),
+        todayCost: modelSum("cost", "flash"),
+        monthTokens: modelMonthSum("totalTokens", "flash"),
+        monthCost: modelMonthSum("cost", "flash")
+      },
+      pro: {
+        todayTokens: modelSum("totalTokens", "pro"),
+        todayRequests: modelSum("requests", "pro"),
+        todayCost: modelSum("cost", "pro"),
+        monthTokens: modelMonthSum("totalTokens", "pro"),
+        monthCost: modelMonthSum("cost", "pro")
+      }
     };
   }
 
@@ -418,6 +502,8 @@
 
   return {
     aggregateUsage,
+    cloneModelBucket,
+    emptyModelBucket,
     formatLocalDate,
     mergeDailyUsage,
     normalizeDate,

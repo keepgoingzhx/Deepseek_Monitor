@@ -61,7 +61,8 @@ function snapshotKey(data) {
     r: (data.runtime || {}).running,
     p: (data.runtime || {}).port,
     e: (data.runtime || {}).error,
-    c: (data.settings || {}).compactMode
+    c: (data.settings || {}).compactMode,
+    t: data.lastImportStatus || ""
   });
 }
 

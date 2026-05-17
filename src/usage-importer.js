@@ -160,18 +160,116 @@ function looksLikeDeepSeekCostPayload(value) {
   return value.some((item) => item && typeof item === "object" && Array.isArray(item.days) && "currency" in item);
 }
 
+function isSubObjectModelKey(key, value) {
+  // Detect model-level sub-objects: keys that are not metric keys themselves
+  // but contain metric-keyed children (e.g. "deepseek-chat": { total_tokens: ... })
+  if (key === "date" || key === "days" || key === "total" || key === "biz_data") return false;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (isDeepSeekMetricKey(key)) return false;
+  // Check children recursively up to 2 levels for metric keys
+  const children = Object.values(value);
+  return children.some((c) => {
+    if (c == null) return false;
+    if (typeof c === "number" || typeof c === "string") return isDeepSeekMetricKey(c.toString());
+    if (typeof c === "object") {
+      // Check one level deeper (for wrapped structures like models.deepseek-chat.total_tokens)
+      if (Array.isArray(c)) return false;
+      return Object.keys(c).some((k) => isDeepSeekMetricKey(k));
+    }
+    return false;
+  });
+}
+
+function modelNameFromKey(key) {
+  const k = String(key).toLowerCase();
+  // Known model key → display name mapping
+  if (/deepseek[-_]chat|chat|flash|deepseek[-_]v3/.test(k)) return "flash";
+  if (/deepseek[-_]reasoner|reasoner|r1|pro|deepseek[-_]r1/.test(k)) return "pro";
+  // Fallback: treat unknown model keys as "pro" (likely reasoning models)
+  return k.slice(0, 12); // truncated raw key as last resort
+}
+
 function parseDeepSeekAmountPayload(payload) {
   return uniqueDeepSeekDays(collectDeepSeekDayItems(payload)).map((day) => {
     const bucket = emptyDay(day.date);
-    addDeepSeekMetricsFromNode(day, bucket, "tokens");
+    const models = {};
+
+    // Step 1: Identify model sub-objects — two patterns:
+    //    a) "models" wrapper:  models: { "deepseek-chat": { total_tokens:... }, ... }
+    //    b) direct sub-object: "deepseek-chat": { total_tokens:..., ... }
+    function processModelValue(modelKey, modelValue) {
+      const modelName = modelNameFromKey(modelKey);
+      if (!modelName) return;
+      const mb = newModelBucket();
+      addDeepSeekMetricsFromNode(modelValue, mb, "tokens");
+      mb.promptTokens += mb.cacheHitTokens + mb.cacheMissTokens;
+      if (!mb.totalTokens) {
+        mb.totalTokens = mb.promptTokens + mb.completionTokens + mb.reasoningTokens;
+      } else {
+        mb.totalTokens = Math.max(mb.totalTokens, mb.promptTokens + mb.completionTokens + mb.reasoningTokens);
+      }
+      models[modelName] = mb;
+    }
+
+    Object.entries(day).forEach(([key, value]) => {
+      if (key === "date") return;
+      // Pattern a: "models" wrapper — each child is a model
+      if (key === "models" && value && typeof value === "object" && !Array.isArray(value)) {
+        Object.entries(value).forEach(([mk, mv]) => processModelValue(mk, mv));
+        return;
+      }
+      // Pattern b: direct model sub-object
+      if (isSubObjectModelKey(key, value)) {
+        processModelValue(key, value);
+      }
+    });
+
+    // Step 2: Process only non-model keys into the main (total) bucket
+    const modelKeys = new Set(["models"]);
+    Object.keys(day).forEach((k) => {
+      if (isSubObjectModelKey(k, day[k])) modelKeys.add(k);
+    });
+    const flat = {};
+    Object.entries(day).forEach(([key, value]) => {
+      if (key === "date" || modelKeys.has(key)) return;
+      flat[key] = value;
+    });
+    addDeepSeekMetricsFromNode(flat, bucket, "tokens");
+
+    // Step 3: Recompute derived fields on the main bucket
     bucket.promptTokens += bucket.cacheHitTokens + bucket.cacheMissTokens;
     if (!bucket.totalTokens) {
       bucket.totalTokens = bucket.promptTokens + bucket.completionTokens + bucket.reasoningTokens;
     } else {
       bucket.totalTokens = Math.max(bucket.totalTokens, bucket.promptTokens + bucket.completionTokens + bucket.reasoningTokens);
     }
+
+    // Step 4: If the main bucket ended up empty but models have data,
+    // compute totals from model sub-buckets
+    if (!bucket.totalTokens && !bucket.promptTokens && !bucket.completionTokens) {
+      Object.values(models).forEach((mb) => {
+        bucket.totalTokens += mb.totalTokens;
+        bucket.promptTokens += mb.promptTokens;
+        bucket.completionTokens += mb.completionTokens;
+        bucket.cacheHitTokens += mb.cacheHitTokens;
+        bucket.cacheMissTokens += mb.cacheMissTokens;
+        bucket.reasoningTokens += mb.reasoningTokens;
+        bucket.cost += mb.cost;
+        bucket.requests += mb.requests;
+      });
+    }
+
+    bucket.models = models;
     return bucket;
   }).filter((item) => item.date && (item.totalTokens || item.requests));
+}
+
+function newModelBucket() {
+  return {
+    totalTokens: 0, promptTokens: 0, completionTokens: 0,
+    cacheHitTokens: 0, cacheMissTokens: 0, reasoningTokens: 0,
+    cost: 0, requests: 0
+  };
 }
 
 function parseDeepSeekCostPayload(payload) {
@@ -374,7 +472,11 @@ function emptyDay(date) {
     cacheMissTokens: 0,
     reasoningTokens: 0,
     cost: 0,
-    requests: 0
+    requests: 0,
+    models: {
+      flash: newModelBucket(),
+      pro: newModelBucket()
+    }
   };
 }
 
@@ -393,7 +495,25 @@ function mergeDeepSeekDays(byDate, days) {
     bucket.reasoningTokens += Number(day.reasoningTokens) || 0;
     bucket.cost += Number(day.cost) || 0;
     bucket.requests += Number(day.requests) || 0;
+
+    // Merge model buckets
+    if (day.models) {
+      mergeModelBucket(bucket.models.flash, day.models.flash);
+      mergeModelBucket(bucket.models.pro, day.models.pro);
+    }
   });
+}
+
+function mergeModelBucket(target, source) {
+  if (!source) return;
+  target.totalTokens += Number(source.totalTokens) || 0;
+  target.promptTokens += Number(source.promptTokens) || 0;
+  target.completionTokens += Number(source.completionTokens) || 0;
+  target.cacheHitTokens += Number(source.cacheHitTokens) || 0;
+  target.cacheMissTokens += Number(source.cacheMissTokens) || 0;
+  target.reasoningTokens += Number(source.reasoningTokens) || 0;
+  target.cost += Number(source.cost) || 0;
+  target.requests += Number(source.requests) || 0;
 }
 
 function looksLikeCsv(text) {

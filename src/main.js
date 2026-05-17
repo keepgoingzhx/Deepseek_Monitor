@@ -581,7 +581,8 @@ async function runScheduledUsageCrawl() {
       if (monthCount >= API_CRAWL_MONTHS) {
         lastFullBackgroundCrawlAt = Date.now();
       }
-      closeUsageWindowForResources();
+      // Don't close usageWindow here — the user may still be browsing.
+      // Let them close it manually when they're done.
       broadcastSnapshot();
     }
   } finally {
@@ -603,7 +604,9 @@ function getScheduledCrawlMonthCount() {
 function attachUsageNetworkCapture(webContents) {
   try {
     if (!webContents.debugger.isAttached()) {
-      webContents.debugger.attach("1.3");
+      // Don't pass an explicit protocol version — "1.3" is from the Chrome 63 era
+      // and causes crashes on modern web pages during navigation.
+      webContents.debugger.attach();
       webContents.debugger.sendCommand("Network.enable");
     }
   } catch (error) {
@@ -727,7 +730,7 @@ async function syncUsagePage() {
 
   const apiResult = await crawlLoggedInUsageApis();
   if (apiResult.ok) {
-    closeUsageWindowForResources();
+    broadcastSnapshot();
     return apiResult;
   }
 
@@ -739,7 +742,7 @@ async function syncUsagePage() {
   if (tableResult.daily.length) {
     apiServer.importDailyUsage(tableResult.daily);
     lastImportStatus = `已从页面表格同步 ${tableResult.daily.length} 天用量。`;
-    closeUsageWindowForResources();
+    broadcastSnapshot();
     return { ok: true, message: lastImportStatus };
   }
 
@@ -747,7 +750,7 @@ async function syncUsagePage() {
   if (textResult.daily.length) {
     apiServer.importDailyUsage(textResult.daily);
     lastImportStatus = `已从页面文本同步 ${textResult.daily.length} 天用量。`;
-    closeUsageWindowForResources();
+    broadcastSnapshot();
     return { ok: true, message: lastImportStatus };
   }
 
@@ -755,6 +758,7 @@ async function syncUsagePage() {
   const recent = capturedUsageResponses.slice(-3).map((item) => {
     return `${item.days ? "已识别" : "未识别"} ${item.rows || 0}行 ${item.url}`;
   }).join("；");
+
   lastImportStatus = `未识别到用量。页面帧 ${pageSnapshots.length} 个，表格 ${allTables.length} 个，文本 ${allText.split(/\\r?\\n/).filter(Boolean).length} 行。${recent ? `最近接口：${recent}` : "暂未捕获到 Usage 接口响应。"} ${frameInfo}`;
   return { ok: false, message: lastImportStatus };
 }
@@ -1138,11 +1142,40 @@ function mergeDailyUsageAdditive(days) {
     bucket.reasoningTokens += Number(day.reasoningTokens) || 0;
     bucket.cost += Number(day.cost) || 0;
     bucket.requests += Number(day.requests) || 0;
+
+    // Merge model-level breakdowns
+    if (day.models) {
+      if (!bucket.models) {
+        bucket.models = { flash: emptyModelBucket(), pro: emptyModelBucket() };
+      }
+      addModelBucket(bucket.models.flash, day.models.flash);
+      addModelBucket(bucket.models.pro, day.models.pro);
+    }
   });
 
   return Array.from(byDate.values())
     .filter((item) => item.totalTokens || item.cost || item.requests)
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function emptyModelBucket() {
+  return {
+    totalTokens: 0, promptTokens: 0, completionTokens: 0,
+    cacheHitTokens: 0, cacheMissTokens: 0, reasoningTokens: 0,
+    cost: 0, requests: 0
+  };
+}
+
+function addModelBucket(target, source) {
+  if (!source || typeof source !== "object") return;
+  target.totalTokens += Number(source.totalTokens) || 0;
+  target.promptTokens += Number(source.promptTokens) || 0;
+  target.completionTokens += Number(source.completionTokens) || 0;
+  target.cacheHitTokens += Number(source.cacheHitTokens) || 0;
+  target.cacheMissTokens += Number(source.cacheMissTokens) || 0;
+  target.reasoningTokens += Number(source.reasoningTokens) || 0;
+  target.cost += Number(source.cost) || 0;
+  target.requests += Number(source.requests) || 0;
 }
 
 function createEmptyUsageDay(date) {
@@ -1155,7 +1188,11 @@ function createEmptyUsageDay(date) {
     cacheMissTokens: 0,
     reasoningTokens: 0,
     cost: 0,
-    requests: 0
+    requests: 0,
+    models: {
+      flash: emptyModelBucket(),
+      pro: emptyModelBucket()
+    }
   };
 }
 

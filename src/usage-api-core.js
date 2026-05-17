@@ -285,7 +285,8 @@ class UsageApiServer extends EventEmitter {
         cost: 0,
         requests: 0,
         lastModel: "",
-        updatedAt: ""
+        updatedAt: "",
+        models: { flash: emptyModelBucket(), pro: emptyModelBucket() }
       };
       state.daily.push(bucket);
     }
@@ -300,6 +301,27 @@ class UsageApiServer extends EventEmitter {
     bucket.requests += 1;
     bucket.lastModel = meta.model || bucket.lastModel;
     bucket.updatedAt = new Date().toISOString();
+
+    // Populate per-model buckets from the request model name
+    if (meta.model) {
+      if (!bucket.models) {
+        bucket.models = { flash: emptyModelBucket(), pro: emptyModelBucket() };
+      }
+      const m = String(meta.model).toLowerCase();
+      const isFlash = /flash|deepseek[-_]chat|deepseek[-_]v3/.test(m);
+      const isPro = /pro|reasoner|r1|deepseek[-_]r1/.test(m);
+      const mb = isFlash ? bucket.models.flash : isPro ? bucket.models.pro : null;
+      if (mb) {
+        mb.totalTokens += normalized.totalTokens;
+        mb.promptTokens += normalized.promptTokens;
+        mb.completionTokens += normalized.completionTokens;
+        mb.cacheHitTokens += normalized.cacheHitTokens;
+        mb.cacheMissTokens += normalized.cacheMissTokens;
+        mb.reasoningTokens += normalized.reasoningTokens;
+        mb.cost += normalized.cost;
+        mb.requests += 1;
+      }
+    }
 
     this.writeState(state);
     this.emit("usage", this.getUsage());
@@ -447,6 +469,7 @@ function normalizeUsage(usage) {
 }
 
 function normalizeDay(item) {
+  const models = item && item.models;
   return {
     date: String(item.date || ""),
     totalTokens: toNumber(item.totalTokens),
@@ -458,7 +481,35 @@ function normalizeDay(item) {
     cost: toNumber(item.cost),
     requests: toNumber(item.requests),
     lastModel: String(item.lastModel || ""),
-    updatedAt: String(item.updatedAt || "")
+    updatedAt: String(item.updatedAt || ""),
+    models: models && typeof models === "object"
+      ? {
+          flash: normalizeModelBucket(models.flash),
+          pro: normalizeModelBucket(models.pro)
+        }
+      : { flash: emptyModelBucket(), pro: emptyModelBucket() }
+  };
+}
+
+function normalizeModelBucket(m) {
+  if (!m || typeof m !== "object") return emptyModelBucket();
+  return {
+    totalTokens: toNumber(m.totalTokens),
+    promptTokens: toNumber(m.promptTokens),
+    completionTokens: toNumber(m.completionTokens),
+    cacheHitTokens: toNumber(m.cacheHitTokens),
+    cacheMissTokens: toNumber(m.cacheMissTokens),
+    reasoningTokens: toNumber(m.reasoningTokens),
+    cost: toNumber(m.cost),
+    requests: toNumber(m.requests)
+  };
+}
+
+function emptyModelBucket() {
+  return {
+    totalTokens: 0, promptTokens: 0, completionTokens: 0,
+    cacheHitTokens: 0, cacheMissTokens: 0, reasoningTokens: 0,
+    cost: 0, requests: 0
   };
 }
 
@@ -606,6 +657,23 @@ function isSameUsageDay(left, right) {
     && left.reasoningTokens === right.reasoningTokens
     && left.cost === right.cost
     && left.requests === right.requests
+    && isSameModelBucket(left.models && left.models.flash, right.models && right.models.flash)
+    && isSameModelBucket(left.models && left.models.pro, right.models && right.models.pro)
+  );
+}
+
+function isSameModelBucket(left, right) {
+  if (!left && !right) return true;
+  if (!left || !right) return false;
+  return (
+    left.totalTokens === right.totalTokens
+    && left.promptTokens === right.promptTokens
+    && left.completionTokens === right.completionTokens
+    && left.cacheHitTokens === right.cacheHitTokens
+    && left.cacheMissTokens === right.cacheMissTokens
+    && left.reasoningTokens === right.reasoningTokens
+    && left.cost === right.cost
+    && left.requests === right.requests
   );
 }
 
@@ -618,9 +686,11 @@ function isSameUsageState(left, right) {
 }
 
 function formatDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  // Use UTC — DeepSeek's API returns billing data keyed by UTC dates,
+  // and the stored daily usage uses UTC dates throughout.
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
