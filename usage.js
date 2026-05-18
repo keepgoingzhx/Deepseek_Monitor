@@ -35,6 +35,13 @@
     "花费"
   ];
 
+  const MODEL_HINTS = [
+    "model",
+    "model_id",
+    "model_name",
+    "model name"
+  ];
+
   function normalizeHeader(header) {
     return String(header || "")
       .replace(/^\uFEFF/, "")
@@ -314,6 +321,24 @@
     };
   }
 
+  function getModelBucketKey(row) {
+    const modelKey = findKey(row, MODEL_HINTS, { mode: "exact" });
+    const model = modelKey ? String(row[modelKey] || "").toLowerCase() : "";
+    if (!model) {
+      return "";
+    }
+
+    const hasFlash = /flash|deepseek[-_]chat|deepseek[-_]v3|\bchat\b/.test(model);
+    const hasPro = /pro|reasoner|deepseek[-_]r1|\br1\b/.test(model);
+    if (hasFlash && !hasPro) {
+      return "flash";
+    }
+    if (hasPro && !hasFlash) {
+      return "pro";
+    }
+    return "";
+  }
+
   function aggregateUsage(rows) {
     const daily = new Map();
     let skipped = 0;
@@ -347,6 +372,7 @@
       }
 
       const bucket = daily.get(date);
+      const modelBucketKey = getModelBucketKey(row);
       bucket.totalTokens += usage.totalTokens;
       bucket.promptTokens += usage.promptTokens;
       bucket.completionTokens += usage.completionTokens;
@@ -355,6 +381,21 @@
       bucket.reasoningTokens += usage.reasoningTokens;
       bucket.cost += usage.cost;
       bucket.requests += 1;
+
+      if (modelBucketKey) {
+        if (!bucket.models) {
+          bucket.models = { flash: emptyModelBucket(), pro: emptyModelBucket() };
+        }
+        const modelBucket = bucket.models[modelBucketKey];
+        modelBucket.totalTokens += usage.totalTokens;
+        modelBucket.promptTokens += usage.promptTokens;
+        modelBucket.completionTokens += usage.completionTokens;
+        modelBucket.cacheHitTokens += usage.cacheHitTokens;
+        modelBucket.cacheMissTokens += usage.cacheMissTokens;
+        modelBucket.reasoningTokens += usage.reasoningTokens;
+        modelBucket.cost += usage.cost;
+        modelBucket.requests += 1;
+      }
     });
 
     return {

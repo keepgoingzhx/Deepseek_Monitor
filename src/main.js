@@ -463,6 +463,12 @@ function getSnapshot() {
   const monthCost = daily
     .filter((item) => item.date.slice(0, 7) === month)
     .reduce((sum, item) => sum + (item.cost || 0), 0);
+  const monthFlashTokens = daily
+    .filter((item) => item.date.slice(0, 7) === month)
+    .reduce((sum, item) => sum + (item.models?.flash?.totalTokens || 0), 0);
+  const monthProTokens = daily
+    .filter((item) => item.date.slice(0, 7) === month)
+    .reduce((sum, item) => sum + (item.models?.pro?.totalTokens || 0), 0);
 
   return {
     settings: publicSettings(),
@@ -481,7 +487,15 @@ function getSnapshot() {
       latest,
       firstDate: daily[0] ? daily[0].date : "",
       lastDate: latest ? latest.date : "",
-      days: daily.length
+      days: daily.length,
+      flash: {
+        todayTokens: todayItem?.models?.flash?.totalTokens || 0,
+        monthTokens: monthFlashTokens
+      },
+      pro: {
+        todayTokens: todayItem?.models?.pro?.totalTokens || 0,
+        monthTokens: monthProTokens
+      }
     }
   };
 }
@@ -719,13 +733,16 @@ async function injectUsageWindowHelper() {
 }
 
 async function syncUsagePage() {
-  if (!usageWindow || usageWindow.isDestroyed()) {
+  const windowOpen = usageWindow && !usageWindow.isDestroyed();
+
+  if (!windowOpen) {
     const storedLoginResult = await crawlLoggedInUsageApis();
-    if (storedLoginResult.ok) {
-      return storedLoginResult;
-    }
-    lastImportStatus = `${storedLoginResult.message || "未找到本地登录态。"} 请点击“登录”打开 DeepSeek 页面，登录后会自动同步，也可以手动点“同步”。`;
-    return { ok: false, message: lastImportStatus };
+    lastImportStatus = (storedLoginResult.ok
+      ? storedLoginResult.message || "API爬取成功"
+      : storedLoginResult.message || "未找到本地登录态。")
+      + " | 提示：打开登录页后同步可捕获更多接口";
+    broadcastSnapshot();
+    return { ok: storedLoginResult.ok, message: lastImportStatus };
   }
 
   const apiResult = await crawlLoggedInUsageApis();

@@ -80,6 +80,8 @@ const elements = {
   importStatus: document.querySelector("#importStatus"),
   todayTokens: document.querySelector("#todayTokens"),
   monthTokens: document.querySelector("#monthTokens"),
+  monthFlashTokens: document.querySelector("#monthFlashTokens"),
+  monthProTokens: document.querySelector("#monthProTokens"),
   latestTokens: document.querySelector("#latestTokens"),
   latestDate: document.querySelector("#latestDate"),
   dataRange: document.querySelector("#dataRange"),
@@ -284,6 +286,11 @@ function renderMetrics() {
 
   elements.todayTokens.textContent = formatCompact(summary.todayTokens);
   elements.monthTokens.textContent = formatCompact(summary.monthTokens);
+  const flashMonth = summary.flash?.monthTokens || 0;
+  const proMonth = summary.pro?.monthTokens || 0;
+  const hasMonthModelBreakdown = Boolean(flashMonth || proMonth);
+  elements.monthFlashTokens.textContent = formatModelCompact(flashMonth, hasMonthModelBreakdown || !summary.monthTokens);
+  elements.monthProTokens.textContent = formatModelCompact(proMonth, hasMonthModelBreakdown || !summary.monthTokens);
   elements.latestTokens.textContent = summary.latest ? formatCompact(summary.latest.totalTokens) : "0";
   elements.latestDate.textContent = summary.latest ? summary.latest.date : "暂无数据";
 
@@ -321,15 +328,20 @@ function renderChart() {
 
 function renderTable() {
   if (!dailyUsage.length) {
-    elements.usageTableBody.innerHTML = '<tr><td colspan="5" class="empty-cell">暂无数据</td></tr>';
+    elements.usageTableBody.innerHTML = '<tr><td colspan="7" class="empty-cell">暂无数据</td></tr>';
     return;
   }
 
   elements.usageTableBody.innerHTML = dailyUsage.slice(-12).reverse().map((item) => {
+    const flash = Number(item.models?.flash?.totalTokens) || 0;
+    const pro = Number(item.models?.pro?.totalTokens) || 0;
+    const hasModelBreakdown = Boolean(flash || pro);
     return `
       <tr>
         <td>${escapeHtml(item.date)}</td>
         <td>${formatCompact(item.totalTokens)}</td>
+        <td>${formatModelCompact(flash, hasModelBreakdown || !item.totalTokens)}</td>
+        <td>${formatModelCompact(pro, hasModelBreakdown || !item.totalTokens)}</td>
         <td>${formatCompact(item.promptTokens)}</td>
         <td>${formatCompact(item.completionTokens)}</td>
         <td>${item.cost ? formatMoney(item.cost) : "-"}</td>
@@ -356,6 +368,10 @@ function formatCompact(value) {
     notation: number >= 100000 ? "compact" : "standard",
     maximumFractionDigits: 1
   }).format(number);
+}
+
+function formatModelCompact(value, available) {
+  return available ? formatCompact(value) : "--";
 }
 
 function formatMoney(value) {

@@ -308,6 +308,21 @@ body.compact-mode .compact-widget {
   text-transform: uppercase;
 }
 
+/* ---- model badges ---- */
+.hero-models {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+  margin-top: 0;
+}
+.model-badge { flex: 1; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+.model-badge em { font-style: normal; font-size: 12px; opacity: 0.8; }
+.model-badge b { font-weight: 700; font-variant-numeric: tabular-nums; margin-left: auto; }
+.model-badge.flash { background: #e8f5e9; color: #2e7d32; }
+.model-badge.flash b { color: #1b5e20; }
+.model-badge.pro { background: #e8eaf6; color: #283593; }
+.model-badge.pro b { color: #1a237e; }
+
 .hero strong {
   display: block;
   overflow: hidden;
@@ -409,6 +424,43 @@ body.compact-mode .compact-widget {
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-models {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.summary-models span {
+  min-width: 0;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+}
+
+.summary-models small {
+  display: block;
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-models b {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -718,6 +770,51 @@ body.compact-mode .compact-widget {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--accent), var(--accent-dark));
+}
+
+.usage-model-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.usage-model-row span {
+  min-width: 0;
+  border-radius: 6px;
+  padding: 7px 8px;
+}
+
+.usage-model-row .flash {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.usage-model-row .pro {
+  background: #e8eaf6;
+  color: #283593;
+}
+
+.usage-model-row small {
+  display: block;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-model-row b {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .usage-breakdown-row {

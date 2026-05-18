@@ -126,6 +126,12 @@ class UsageApiServer extends EventEmitter {
     dailyUsage.forEach((item) => {
       const day = normalizeDay(item);
       const existing = merged.get(day.date);
+      if (existing && !hasModelBreakdown(day) && hasModelBreakdown(existing)) {
+        day.models = {
+          flash: normalizeModelBucket(existing.models && existing.models.flash),
+          pro: normalizeModelBucket(existing.models && existing.models.pro)
+        };
+      }
       if (existing && isSameUsageDay(existing, day)) {
         merged.set(day.date, existing);
         return;
@@ -511,6 +517,26 @@ function emptyModelBucket() {
     cacheHitTokens: 0, cacheMissTokens: 0, reasoningTokens: 0,
     cost: 0, requests: 0
   };
+}
+
+function hasModelBreakdown(day) {
+  return Boolean(day && (
+    hasModelBucketUsage(day.models && day.models.flash)
+    || hasModelBucketUsage(day.models && day.models.pro)
+  ));
+}
+
+function hasModelBucketUsage(bucket) {
+  return Boolean(bucket && (
+    bucket.totalTokens
+    || bucket.promptTokens
+    || bucket.completionTokens
+    || bucket.cacheHitTokens
+    || bucket.cacheMissTokens
+    || bucket.reasoningTokens
+    || bucket.cost
+    || bucket.requests
+  ));
 }
 
 function summarize(daily) {

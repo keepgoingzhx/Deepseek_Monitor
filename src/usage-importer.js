@@ -182,86 +182,170 @@ function isSubObjectModelKey(key, value) {
 
 function modelNameFromKey(key) {
   const k = String(key).toLowerCase();
-  // Known model key → display name mapping
-  if (/deepseek[-_]chat|chat|flash|deepseek[-_]v3/.test(k)) return "flash";
-  if (/deepseek[-_]reasoner|reasoner|r1|pro|deepseek[-_]r1/.test(k)) return "pro";
-  // Fallback: treat unknown model keys as "pro" (likely reasoning models)
-  return k.slice(0, 12); // truncated raw key as last resort
+  const hasFlash = /flash|deepseek[-_]chat|deepseek[-_]v3|\bchat\b/.test(k);
+  const hasPro = /pro|reasoner|deepseek[-_]r1|\br1\b/.test(k);
+  if (hasFlash && !hasPro) return "flash";
+  if (hasPro && !hasFlash) return "pro";
+  return "";
 }
 
 function parseDeepSeekAmountPayload(payload) {
   return uniqueDeepSeekDays(collectDeepSeekDayItems(payload)).map((day) => {
     const bucket = emptyDay(day.date);
-    const models = {};
+    const models = { flash: newModelBucket(), pro: newModelBucket() };
+    const modelTotals = collectModelMetricsFromNode(day, models, "tokens");
+    const flat = stripModelMetricEntries(day);
 
-    // Step 1: Identify model sub-objects — two patterns:
-    //    a) "models" wrapper:  models: { "deepseek-chat": { total_tokens:... }, ... }
-    //    b) direct sub-object: "deepseek-chat": { total_tokens:..., ... }
-    function processModelValue(modelKey, modelValue) {
-      const modelName = modelNameFromKey(modelKey);
-      if (!modelName) return;
-      const mb = newModelBucket();
-      addDeepSeekMetricsFromNode(modelValue, mb, "tokens");
-      mb.promptTokens += mb.cacheHitTokens + mb.cacheMissTokens;
-      if (!mb.totalTokens) {
-        mb.totalTokens = mb.promptTokens + mb.completionTokens + mb.reasoningTokens;
-      } else {
-        mb.totalTokens = Math.max(mb.totalTokens, mb.promptTokens + mb.completionTokens + mb.reasoningTokens);
-      }
-      models[modelName] = mb;
-    }
-
-    Object.entries(day).forEach(([key, value]) => {
-      if (key === "date") return;
-      // Pattern a: "models" wrapper — each child is a model
-      if (key === "models" && value && typeof value === "object" && !Array.isArray(value)) {
-        Object.entries(value).forEach(([mk, mv]) => processModelValue(mk, mv));
-        return;
-      }
-      // Pattern b: direct model sub-object
-      if (isSubObjectModelKey(key, value)) {
-        processModelValue(key, value);
-      }
-    });
-
-    // Step 2: Process only non-model keys into the main (total) bucket
-    const modelKeys = new Set(["models"]);
-    Object.keys(day).forEach((k) => {
-      if (isSubObjectModelKey(k, day[k])) modelKeys.add(k);
-    });
-    const flat = {};
-    Object.entries(day).forEach(([key, value]) => {
-      if (key === "date" || modelKeys.has(key)) return;
-      flat[key] = value;
-    });
     addDeepSeekMetricsFromNode(flat, bucket, "tokens");
-
-    // Step 3: Recompute derived fields on the main bucket
-    bucket.promptTokens += bucket.cacheHitTokens + bucket.cacheMissTokens;
-    if (!bucket.totalTokens) {
-      bucket.totalTokens = bucket.promptTokens + bucket.completionTokens + bucket.reasoningTokens;
-    } else {
-      bucket.totalTokens = Math.max(bucket.totalTokens, bucket.promptTokens + bucket.completionTokens + bucket.reasoningTokens);
-    }
-
-    // Step 4: If the main bucket ended up empty but models have data,
-    // compute totals from model sub-buckets
-    if (!bucket.totalTokens && !bucket.promptTokens && !bucket.completionTokens) {
-      Object.values(models).forEach((mb) => {
-        bucket.totalTokens += mb.totalTokens;
-        bucket.promptTokens += mb.promptTokens;
-        bucket.completionTokens += mb.completionTokens;
-        bucket.cacheHitTokens += mb.cacheHitTokens;
-        bucket.cacheMissTokens += mb.cacheMissTokens;
-        bucket.reasoningTokens += mb.reasoningTokens;
-        bucket.cost += mb.cost;
-        bucket.requests += mb.requests;
-      });
-    }
+    finalizeTokenBucket(bucket);
+    fillBucketFromModelTotals(bucket, modelTotals);
 
     bucket.models = models;
     return bucket;
   }).filter((item) => item.date && (item.totalTokens || item.requests));
+}
+
+function collectModelMetricsFromNode(value, models, mode) {
+  const aggregate = newModelBucket();
+
+  function visit(node, depth = 0) {
+    if (depth > 10 || node == null) return;
+
+    if (Array.isArray(node)) {
+      node.forEach((item) => visit(item, depth + 1));
+      return;
+    }
+
+    if (typeof node !== "object") return;
+
+    const modelLabel = getDeepSeekModelLabel(node);
+    if (modelLabel) {
+      addModelMetricValue(modelLabel, node, models, aggregate, mode);
+      return;
+    }
+
+    Object.entries(node).forEach(([key, child]) => {
+      if (!child || typeof child !== "object") return;
+
+      if (key === "models" && !Array.isArray(child)) {
+        Object.entries(child).forEach(([modelKey, modelValue]) => {
+          addModelMetricValue(modelKey, modelValue, models, aggregate, mode);
+        });
+        return;
+      }
+
+      if (modelNameFromKey(key) || isSubObjectModelKey(key, child)) {
+        addModelMetricValue(key, child, models, aggregate, mode);
+        return;
+      }
+
+      visit(child, depth + 1);
+    });
+  }
+
+  visit(value);
+  return aggregate;
+}
+
+function addModelMetricValue(modelKey, modelValue, models, aggregate, mode) {
+  const bucket = newModelBucket();
+  addDeepSeekMetricsFromNode(modelValue, bucket, mode);
+  if (mode === "tokens") {
+    finalizeTokenBucket(bucket);
+  }
+
+  if (!hasBucketUsage(bucket)) return;
+
+  mergeModelBucket(aggregate, bucket);
+  const modelName = modelNameFromKey(modelKey);
+  if (modelName && models[modelName]) {
+    mergeModelBucket(models[modelName], bucket);
+  }
+}
+
+function getDeepSeekModelLabel(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  const keys = ["model", "model_id", "model_name", "modelId", "modelName"];
+  for (const key of keys) {
+    if (value[key] == null) continue;
+    const label = String(value[key]).trim();
+    if (label) return label;
+  }
+  return "";
+}
+
+function stripModelMetricEntries(value, depth = 0) {
+  if (depth > 10 || value == null) return value;
+
+  if (Array.isArray(value)) {
+    const items = value
+      .filter((item) => !getDeepSeekModelLabel(item))
+      .map((item) => stripModelMetricEntries(item, depth + 1))
+      .filter((item) => item != null && (!Array.isArray(item) || item.length));
+    return items;
+  }
+
+  if (typeof value !== "object") return value;
+  if (getDeepSeekModelLabel(value)) return null;
+
+  const output = {};
+  Object.entries(value).forEach(([key, child]) => {
+    if (key === "date" || key === "models") return;
+    if (child && typeof child === "object" && (modelNameFromKey(key) || isSubObjectModelKey(key, child))) return;
+
+    const stripped = stripModelMetricEntries(child, depth + 1);
+    if (stripped == null) return;
+    if (Array.isArray(stripped) && !stripped.length) return;
+    output[key] = stripped;
+  });
+
+  return output;
+}
+
+function finalizeTokenBucket(bucket) {
+  const cachePromptTokens = bucket.cacheHitTokens + bucket.cacheMissTokens;
+  if (cachePromptTokens) {
+    bucket.promptTokens = bucket.promptTokens
+      ? Math.max(bucket.promptTokens, cachePromptTokens)
+      : cachePromptTokens;
+  }
+
+  const derivedTotal = bucket.promptTokens + bucket.completionTokens + bucket.reasoningTokens;
+  if (derivedTotal) {
+    bucket.totalTokens = bucket.totalTokens
+      ? Math.max(bucket.totalTokens, derivedTotal)
+      : derivedTotal;
+  }
+}
+
+function fillBucketFromModelTotals(bucket, modelTotals) {
+  if (!hasBucketUsage(modelTotals)) return;
+
+  if (!bucket.totalTokens && !bucket.promptTokens && !bucket.completionTokens && !bucket.reasoningTokens) {
+    mergeModelBucket(bucket, modelTotals);
+    return;
+  }
+
+  if (modelTotals.totalTokens > bucket.totalTokens) bucket.totalTokens = modelTotals.totalTokens;
+  if (!bucket.promptTokens) bucket.promptTokens = modelTotals.promptTokens;
+  if (!bucket.completionTokens) bucket.completionTokens = modelTotals.completionTokens;
+  if (!bucket.cacheHitTokens) bucket.cacheHitTokens = modelTotals.cacheHitTokens;
+  if (!bucket.cacheMissTokens) bucket.cacheMissTokens = modelTotals.cacheMissTokens;
+  if (!bucket.reasoningTokens) bucket.reasoningTokens = modelTotals.reasoningTokens;
+  if (!bucket.requests) bucket.requests = modelTotals.requests;
+}
+
+function hasBucketUsage(bucket) {
+  return Boolean(bucket && (
+    bucket.totalTokens
+    || bucket.promptTokens
+    || bucket.completionTokens
+    || bucket.cacheHitTokens
+    || bucket.cacheMissTokens
+    || bucket.reasoningTokens
+    || bucket.cost
+    || bucket.requests
+  ));
 }
 
 function newModelBucket() {
@@ -282,7 +366,11 @@ function parseDeepSeekCostPayload(payload) {
       byDate.set(date, emptyDay(date));
     }
     const bucket = byDate.get(date);
-    addDeepSeekMetricsFromNode(day, bucket, "cost");
+    const modelTotals = collectModelMetricsFromNode(day, bucket.models, "cost");
+    addDeepSeekMetricsFromNode(stripModelMetricEntries(day), bucket, "cost");
+    if (!bucket.cost && modelTotals.cost) {
+      bucket.cost = modelTotals.cost;
+    }
   });
 
   return Array.from(byDate.values()).filter((item) => item.date && item.cost);

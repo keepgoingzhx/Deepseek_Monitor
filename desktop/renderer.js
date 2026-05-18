@@ -14,7 +14,11 @@ const elements = {
   todayPromptTokens: document.querySelector("#todayPromptTokens"),
   todayOutputTokens: document.querySelector("#todayOutputTokens"),
   todayCacheTokens: document.querySelector("#todayCacheTokens"),
+  todayFlashTokens: document.querySelector("#todayFlashTokens"),
+  todayProTokens: document.querySelector("#todayProTokens"),
   monthTokens: document.querySelector("#monthTokens"),
+  monthFlashTokens: document.querySelector("#monthFlashTokens"),
+  monthProTokens: document.querySelector("#monthProTokens"),
   todayRequests: document.querySelector("#todayRequests"),
   balanceValue: document.querySelector("#balanceValue"),
   apiStatus: document.querySelector("#apiStatus"),
@@ -177,7 +181,17 @@ function renderMetrics(data) {
   elements.todayPromptTokens.textContent = formatCompact(todayItem ? todayItem.promptTokens : 0);
   elements.todayOutputTokens.textContent = formatCompact(todayItem ? todayItem.completionTokens : 0);
   elements.todayCacheTokens.textContent = formatCompact(todayItem ? todayItem.cacheHitTokens : 0);
+  const flashToday = todayItem?.models?.flash?.totalTokens || 0;
+  const proToday = todayItem?.models?.pro?.totalTokens || 0;
+  const hasTodayModelBreakdown = Boolean(flashToday || proToday);
+  if (elements.todayFlashTokens) elements.todayFlashTokens.textContent = formatModelCompact(flashToday, hasTodayModelBreakdown || !todayTokens);
+  if (elements.todayProTokens) elements.todayProTokens.textContent = formatModelCompact(proToday, hasTodayModelBreakdown || !todayTokens);
   elements.monthTokens.textContent = formatCompact(summary.monthTokens || 0);
+  const flashMonth = summary.flash?.monthTokens || 0;
+  const proMonth = summary.pro?.monthTokens || 0;
+  const hasMonthModelBreakdown = Boolean(flashMonth || proMonth);
+  if (elements.monthFlashTokens) elements.monthFlashTokens.textContent = formatModelCompact(flashMonth, hasMonthModelBreakdown || !(summary.monthTokens || 0));
+  if (elements.monthProTokens) elements.monthProTokens.textContent = formatModelCompact(proMonth, hasMonthModelBreakdown || !(summary.monthTokens || 0));
   elements.todayRequests.textContent = formatNumber(summary.todayRequests || 0);
 
   if (Number.isFinite(Number(summary.monthCost))) {
@@ -241,6 +255,9 @@ function renderUsageList(daily) {
     const cacheMiss = Number(item.cacheMissTokens) || 0;
     const requests = Number(item.requests) || 0;
     const cost = Number(item.cost) || 0;
+    const flash = Number(item.models?.flash?.totalTokens) || 0;
+    const pro = Number(item.models?.pro?.totalTokens) || 0;
+    const hasModelBreakdown = Boolean(flash || pro);
     const percent = Math.max(total ? 5 : 0, Math.round((total / maxTokens) * 100));
 
     return `
@@ -257,6 +274,10 @@ function renderUsageList(daily) {
           <strong>${escapeHtml(formatNumber(total))} <em>tokens</em></strong>
         </div>
         <div class="usage-meter" aria-hidden="true"><span style="width:${percent}%"></span></div>
+        <div class="usage-model-row">
+          <span class="flash"><small>Flash</small><b>${escapeHtml(formatModelNumber(flash, hasModelBreakdown || !total))}</b></span>
+          <span class="pro"><small>Pro</small><b>${escapeHtml(formatModelNumber(pro, hasModelBreakdown || !total))}</b></span>
+        </div>
         <div class="usage-breakdown-row">
           <span><small>input</small><b>${escapeHtml(formatNumber(prompt))}</b></span>
           <span><small>output</small><b>${escapeHtml(formatNumber(output))}</b></span>
@@ -413,6 +434,14 @@ function formatCompact(value) {
     notation: number >= 100000 ? "compact" : "standard",
     maximumFractionDigits: 1
   }).format(number);
+}
+
+function formatModelCompact(value, available) {
+  return available ? formatCompact(value) : "--";
+}
+
+function formatModelNumber(value, available) {
+  return available ? formatNumber(value) : "--";
 }
 
 function formatBalance(value, currency) {
